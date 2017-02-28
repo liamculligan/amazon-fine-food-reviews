@@ -3,6 +3,9 @@
 #Load required packages
 import pandas as pd
 import numpy as np
+from nltk.corpus import stopwords
+from nltk.tokenize import RegexpTokenizer
+from nltk import pos_tag
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import OneHotEncoder
@@ -39,8 +42,95 @@ reviews['text_count'] = reviews['Text'].str.split().apply(len)
 reviews = reviews.assign(all_words_count = reviews['summary_count'] + reviews['text_count'])
 
 #Create train and test stratified w.r.t score
-train, test, train_score, test_score = train_test_split(reviews, score, train_size = 0.5, stratify = score)
+train, test, train_score, test_score = train_test_split(reviews, score, train_size = 0.5, stratify = score, \
+                                                        random_state = 44)
 
+#Order train_score and test_score by index
+train = train.sort_index()
+train_score = train_score.sort_index()
+test = test.sort_index()
+test_score = test_score.sort_index()
+
+#Parts of Speech Tagging
+def pos_count(series):
+    
+    """Input a pandas series to convert it into a count for each part of speech."""
+    
+    rows = list(series)
+    
+    stop_words = set(stopwords.words("english"))
+    
+    #Tokenizer does not include punctuation
+    tokenizer = RegexpTokenizer(r'\w+')
+    
+    row_pos = []
+    
+    for row in rows:
+        row_tokenized = tokenizer.tokenize(row)
+        row_words = []
+        for word in row_tokenized:
+            word = word.lower()
+            if word not in stop_words:
+                #Specifically converting to lower - all words are capitalised in headline
+                row_words.append(word.lower())
+        word_pos = pos_tag(row_words)
+        pos = []
+        for tag in word_pos:
+            pos.append(tag[1])
+        row_pos.append(pos)
+        
+    #Convert list to a pandas DataFrame - each word in a separate column
+    row_pos = pd.DataFrame(row_pos)
+    row_pos.index = series.index
+    
+    #Stack to create multiindexed Series by row and column (long df)
+    #Dummy this series but still multiindexed by row and column
+    #Sum this by row to get the count of each pos for each row
+    pos_count = pd.get_dummies(row_pos.stack()).sum(level = 0)
+    
+    #Add series to to each column name
+    pos_count = pos_count.add_prefix(series.name + '_')
+    
+    return(pos_count)
+
+def pos_concat(train, test, col_name):
+    
+    """Add pos_counts to train and test ensuring that same columns exist in each."""
+    
+    train_pos = pos_count(train[col_name])
+    test_pos = pos_count(test[col_name])
+    
+    train_pos_cols = list(train_pos.columns)
+    test_pos_cols = list(test_pos.columns)
+    
+    #Remove any columns in test not in train
+    test_cols_drop = set(test_pos_cols) - set(train_pos_cols)
+    test_pos = test_pos.drop(test_cols_drop, axis = 'columns')
+        
+    #Add any columns in train not in test
+    test_cols_add = set(train_pos_cols) - set(test_pos_cols)
+    for col in test_cols_add:
+        test_pos[col] = 0
+    
+    #Add counts of pos to train and test
+    train = pd.concat([train, train_pos], axis = 'columns')
+    test = pd.concat([test, test_pos], axis = 'columns')
+    
+    #Some rows have no pos - these become nan - replace with 0
+    train[train_pos_cols] = train[train_pos_cols].fillna(value = 0)
+    test[train_pos_cols] = test[train_pos_cols].fillna(value = 0)
+     
+    return(train, test)
+
+#Call function
+train, test = pos_concat(train, test, 'Summary')
+
+#Reorder DataFrames and Series by index
+train = train.sort_index()
+train_score = train_score.sort_index()
+test = test.sort_index()
+test_score = test_score.sort_index()
+    
 #Summary dtm
 vectorizer = CountVectorizer(min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Summary'])
@@ -194,7 +284,7 @@ results = results.dropna(axis = 'rows', how = 'all')
 #Correct columns types
 results[['max_depth', 'n_rounds']] = results[['max_depth', 'n_rounds']].astype(int)
 
-#Order from best to worst score - xgb9 best score - 20/02/2017 - rmse - 0.878
+#Order from best to worst score - xgb10 best score - 21/02/2017 - rmse - 0.882
 
 results = results.sort_values('score', ascending = True)
 
@@ -259,4 +349,4 @@ test_preds_df = pd.DataFrame({
         "score": test_preds
 })
     
-test_preds_df.to_csv('model/xgb9.csv', index=False)
+test_preds_df.to_csv('model/xgb10.csv', index=False)

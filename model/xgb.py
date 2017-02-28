@@ -1,4 +1,5 @@
 #Predict the product review score
+#XGB2
 
 #Using td-idf rather than dtm
 
@@ -13,6 +14,7 @@ import xgboost as xgb
 from sklearn.metrics import mean_squared_error
 from sklearn.decomposition import NMF
 from sklearn.pipeline import make_pipeline
+import gc
 
 #Read in csv
 reviews = pd.read_csv('Reviews.csv', index_col = 'Id', usecols = ['Id', 'Summary', 'Text', 'Score'])
@@ -76,6 +78,11 @@ test = svd.transform(test)
 #Convert to DMatrix
 dtrain = xgb.DMatrix(train, label = train_score)
 dtest = xgb.DMatrix(test, label = test_score)
+
+del train
+del test
+del reviews
+gc.collect()
 
 results = pd.DataFrame({'eta' : np.nan, 'max_depth' : np.nan, 'subsample' : np.nan, 'colsample_bytree' : np.nan, \
                         'gamma' : np.nan, 'min_child_weight' : np.nan, 'alpha' : np.nan, \
@@ -142,6 +149,7 @@ results = results.dropna(axis = 'rows', how = 'all')
 results[['max_depth', 'n_rounds']] = results[['max_depth', 'n_rounds']].astype(int)
 
 #Order from best to worst score - xgb3 best score - 19/02/2017 - rmse - 1.0549
+
 results = results.sort_values('score', ascending = False)
 
 #Train model on the full training set

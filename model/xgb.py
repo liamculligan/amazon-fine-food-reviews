@@ -19,11 +19,14 @@ reviews = pd.read_csv('Reviews.csv', index_col = 'Id', usecols = ['Id', 'Summary
 #Drop duplicate score-text values
 reviews = reviews.drop_duplicates(subset = ['Summary', 'Text', 'Score'])
 
-#Create text - drop duplicates, convert to lower case and remove line breaks
+#Create text - convert to lower case and remove line breaks
 reviews['Summary'] = reviews['Summary'].str.lower().str.replace('<br />','')
+reviews['Text'] = reviews['Text'].str.lower().str.replace('<br />','')
+
 
 #Replace nan with ""
 reviews['Summary'] = reviews['Summary'].fillna(value = "")
+reviews['Text'] = reviews['Text'].fillna(value = "")
 
 #Extract target variable
 score = reviews['Score']
@@ -40,10 +43,15 @@ vectorizer.fit(train['Summary'])
 train_summary_dtm = vectorizer.transform(train['Summary'])
 test_summary_dtm = vectorizer.transform(test['Summary'])
 
+vectorizer = CountVectorizer(min_df = 0.001, max_df = 1.0, ngram_range = (1, 3), stop_words = 'english')
+vectorizer.fit(train['Text'])
+train_text_dtm = vectorizer.transform(train['Text'])
+test_text_dtm = vectorizer.transform(test['Text'])
+
 #Non-negative matrix factorisation to identify topics in Text
 #Create text - drop duplicates and convert to lower case
-train_text = train['Text'].str.lower().str.replace('<br />','').str.replace('[^\w\s]','')
-test_text = test['Text'].str.lower().str.replace('<br />','').str.replace('[^\w\s]','')
+train_text = train['Text'].str.replace('[^\w\s]','')
+test_text = test['Text'].str.replace('[^\w\s]','')
 
 #Convert to arrays
 train_text_arr = train_text.values
@@ -85,8 +93,8 @@ train_text_arr = csr_matrix(train_text_arr)
 test_text_arr = csr_matrix(test_text_arr)
 
 #Combine sparse arrays
-train = hstack([train_summary_dtm, train_text_arr, train_text_topics])
-test = hstack([test_summary_dtm, test_text_arr, test_text_topics])
+train = hstack([train_summary_dtm, train_text_dtm, train_text_arr, train_text_topics])
+test = hstack([test_summary_dtm, test_text_dtm, test_text_arr, test_text_topics])
 
 #Convert to DMatrix
 dtrain = xgb.DMatrix(train, label = train_score)
@@ -156,7 +164,7 @@ results = results.dropna(axis = 'rows', how = 'all')
 #Correct columns types
 results[['max_depth', 'n_rounds']] = results[['max_depth', 'n_rounds']].astype(int)
 
-#Order from best to worst score - xgb4 best score - 19/02/2017 - rmse - 1.049
+#Order from best to worst score - xgb5 best score - 19/02/2017 - rmse - 0.936
 results = results.sort_values('score', ascending = True)
 
 #Train model on the full training set
@@ -190,4 +198,4 @@ test_preds_df = pd.DataFrame({
         "score": test_preds
 })
     
-test_preds_df.to_csv('model/xgb4.csv', index=False)
+test_preds_df.to_csv('model/xgb5.csv', index=False)

@@ -19,10 +19,9 @@ reviews = pd.read_csv('Reviews.csv', index_col = 'Id', usecols = ['Id', 'Summary
 #Drop duplicate score-text values
 reviews = reviews.drop_duplicates(subset = ['Summary', 'Text', 'Score'])
 
-#Create text - convert to lower case and remove line breaks
-reviews['Summary'] = reviews['Summary'].str.lower().str.replace('<br />','')
-reviews['Text'] = reviews['Text'].str.lower().str.replace('<br />','')
-
+#Create text - remove line breaks
+reviews['Summary'] = reviews['Summary'].str.replace('<br />', ' ')
+reviews['Text'] = reviews['Text'].str.replace('<br />', ' ')
 
 #Replace nan with ""
 reviews['Summary'] = reviews['Summary'].fillna(value = "")
@@ -38,18 +37,18 @@ reviews = reviews.drop('Score', axis = 'columns')
 train, test, train_score, test_score = train_test_split(reviews, score, train_size = 0.5, stratify = score)
 
 #dtm
-vectorizer = CountVectorizer(min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3), stop_words = 'english')
+vectorizer = CountVectorizer(min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Summary'])
 train_summary_dtm = vectorizer.transform(train['Summary'])
 test_summary_dtm = vectorizer.transform(test['Summary'])
 
-vectorizer = CountVectorizer(min_df = 0.001, max_df = 1.0, ngram_range = (1, 3), stop_words = 'english')
+vectorizer = CountVectorizer(min_df = 0.001, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Text'])
 train_text_dtm = vectorizer.transform(train['Text'])
 test_text_dtm = vectorizer.transform(test['Text'])
 
 #Non-negative matrix factorisation to identify topics in Text
-#Create text - drop duplicates and convert to lower case
+#Remove punctuation
 train_text = train['Text'].str.replace('[^\w\s]','')
 test_text = test['Text'].str.replace('[^\w\s]','')
 
@@ -105,7 +104,7 @@ results = pd.DataFrame({'eta' : np.nan, 'max_depth' : np.nan, 'subsample' : np.n
                         'score' : np.nan, 'st_dev' : np.nan, 'n_rounds' : np.nan}, index = [0])
 
 eta_values = [0.7] 
-max_depth_values = [3, 6]
+max_depth_values = [3]
 subsample_values = [0.5] 
 colsample_bytree_values = [0.3]
 gamma_values = [0]
@@ -164,7 +163,8 @@ results = results.dropna(axis = 'rows', how = 'all')
 #Correct columns types
 results[['max_depth', 'n_rounds']] = results[['max_depth', 'n_rounds']].astype(int)
 
-#Order from best to worst score - xgb5 best score - 19/02/2017 - rmse - 0.936
+#Order from best to worst score - xgb6 best score - 20/02/2017 - rmse - 0.878
+
 results = results.sort_values('score', ascending = True)
 
 #Train model on the full training set

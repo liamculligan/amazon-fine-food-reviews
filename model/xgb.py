@@ -1,13 +1,8 @@
 #Predict the product review score
 
-#Stemming/lemmatisation
-
 #Load required packages
 import pandas as pd
 import numpy as np
-import nltk
-import spacy
-import re
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import OneHotEncoder
@@ -38,42 +33,31 @@ score = reviews['Score']
 #Remove score from reviews
 reviews = reviews.drop('Score', axis = 'columns')
 
-#Word stem
+#Count the number of words
+reviews['summary_count'] = reviews['Summary'].str.split().apply(len)
+reviews['text_count'] = reviews['Text'].str.split().apply(len)
+reviews = reviews.assign(all_words_count = reviews['summary_count'] + reviews['text_count'])
 
 #Create train and test stratified w.r.t score
 train, test, train_score, test_score = train_test_split(reviews, score, train_size = 0.5, stratify = score)
 
-# Technicality: we want to use the regexp-based tokenizer
-# that is used by CountVectorizer and only use the lemmatization
-# from spacy. To this end, we replace en_nlp.tokenizer (the spacy tokenizer)
-# with the regexp-based tokenization.
-
-# regexp used in CountVectorizer
-regexp = re.compile('(?u)\\b\\w\\w+\\b')
-
-# load spacy language model and save old tokenizer
-en_nlp = spacy.load('en')
-old_tokenizer = en_nlp.tokenizer
-
-# replace the tokenizer with the preceding regexp tokenizer
-en_nlp.tokenizer = lambda string: old_tokenizer.tokens_from_list(regexp.findall(string))
-
-# create a custom tokenizer using the spacy document processing pipeline
-# (now using our own tokenizer)
-def lemmatizer_tokenizer(document):
-    doc_spacy = en_nlp(document, entity=False, parse=False)
-    return [token.lemma_ for token in doc_spacy]
-            
-#dtm
-vectorizer = CountVectorizer(tokenizer = lemmatizer_tokenizer, min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
+#Summary dtm
+vectorizer = CountVectorizer(min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Summary'])
 train_summary_dtm = vectorizer.transform(train['Summary'])
 test_summary_dtm = vectorizer.transform(test['Summary'])
 
-vectorizer = CountVectorizer(tokenizer = lemmatizer_tokenizer, min_df = 0.001, max_df = 1.0, ngram_range = (1, 3))
+#Summary dtm column names
+names_summary_dtm = vectorizer.get_feature_names()
+
+#Text dtm
+vectorizer = CountVectorizer(min_df = 0.001, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Text'])
 train_text_dtm = vectorizer.transform(train['Text'])
 test_text_dtm = vectorizer.transform(test['Text'])
+
+#Text dtm column names
+names_text_dtm = vectorizer.get_feature_names()
 
 #Non-negative matrix factorisation to identify topics in Text
 #Remove punctuation
@@ -85,15 +69,18 @@ train_text_arr = train_text.values
 test_text_arr = test_text.values
 
 #Instantiate Tfidf
-vectorizer = TfidfVectorizer(tokenizer = lemmatizer_tokenizer, min_df = 5, ngram_range = (1, 1), stop_words = 'english')
+vectorizer = TfidfVectorizer(min_df = 5, ngram_range = (1, 1), stop_words = 'english')
 
 #Instantiate NMF
 nmf = NMF(n_components = 6, random_state = 44)
 
-#Pipeline
+#NMF pipeline
 pipeline = make_pipeline(vectorizer, nmf)
 train_text_arr = pipeline.fit_transform(train_text_arr)
 test_text_arr = pipeline.transform(test_text_arr)
+
+#NMF pipeline column names
+names_text_arr = ['nmf_0', 'nmf_1', 'nmf_2', 'nmf_3', 'nmf_4', 'nmf_5']
 
 #Determine top words for each topic
 def print_top_words(model, feature_names, n_top_words):
@@ -115,13 +102,29 @@ ohe_enc = OneHotEncoder()
 train_text_topics = ohe_enc.fit_transform(train_text_topics.reshape(-1, 1))
 test_text_topics = ohe_enc.transform(test_text_topics.reshape(-1, 1))
 
+#Add main topic column name
+names_text_topics = ['ohe_' + str(x) for x in list(ohe_enc.active_features_)]
+
 #Convert to sparse arrays
 train_text_arr = csr_matrix(train_text_arr)
 test_text_arr = csr_matrix(test_text_arr)
 
+#Remove text columns that have already been converted into numeric features
+train_features = train.drop(['Text', 'Summary'], axis = 'columns')
+test_features = test.drop(['Text', 'Summary'], axis = 'columns')
+
+#Feature names
+names_features = list(train_features.columns)
+
+#Convert train_features and test_features to sparse matrices
+train_features = csr_matrix(train_features.values)
+test_features = csr_matrix(test_features.values)
+
 #Combine sparse arrays
-train = hstack([train_summary_dtm, train_text_dtm, train_text_arr, train_text_topics])
-test = hstack([test_summary_dtm, test_text_dtm, test_text_arr, test_text_topics])
+train = hstack([train_summary_dtm, train_text_dtm, train_text_arr, train_text_topics, train_features])
+test = hstack([test_summary_dtm, test_text_dtm, test_text_arr, test_text_topics, test_features])
+
+col_names = names_summary_dtm + names_text_dtm + names_text_arr + names_text_topics + names_features
 
 #Convert to DMatrix
 dtrain = xgb.DMatrix(train, label = train_score)
@@ -191,7 +194,7 @@ results = results.dropna(axis = 'rows', how = 'all')
 #Correct columns types
 results[['max_depth', 'n_rounds']] = results[['max_depth', 'n_rounds']].astype(int)
 
-#Order from best to worst score - xgb7 best score - 20/02/2017 - rmse - 0.879
+#Order from best to worst score - xgb9 best score - 20/02/2017 - rmse - 0.878
 
 results = results.sort_values('score', ascending = True)
 
@@ -214,6 +217,36 @@ xgb_mod = xgb.train(param,
                     verbose_eval = True
                     )
 
+#Feature importance
+
+#Not working maybe with so many columns 
+
+"""
+import operator
+
+def create_feature_map(features):
+    outfile = open('xgb.fmap', 'w')
+    for i, feat in enumerate(features):
+        outfile.write('{0}\t{1}\tq\n'.format(i, feat))
+    outfile.close()
+    
+create_feature_map(col_names)
+
+importance = xgb_mod.get_fscore(fmap='xgb.fmap')
+
+importance = sorted(importance.items(), key=operator.itemgetter(1))
+
+df = pd.DataFrame(importance, columns=['feature', 'fscore'])
+df['fscore'] = df['fscore'] / df['fscore'].sum()
+
+featp = df.plot(kind='barh', x='feature', y='fscore', legend=False, figsize=(6, 10))
+plt.title('XGBoost Feature Importance')
+plt.xlabel('relative importance')
+fig_featp = featp.get_figure()
+fig_featp.savefig('feature_importance_xgb.png', bbox_inches='tight', pad_inches=1)
+
+"""
+
 #Make predictions on the test set
 test_preds = xgb_mod.predict(dtest)
 
@@ -226,4 +259,4 @@ test_preds_df = pd.DataFrame({
         "score": test_preds
 })
     
-test_preds_df.to_csv('model/xgb5.csv', index=False)
+test_preds_df.to_csv('model/xgb9.csv', index=False)

@@ -48,9 +48,6 @@ train, test, train_score, test_score = train_test_split(reviews, score, train_si
 # from spacy. To this end, we replace en_nlp.tokenizer (the spacy tokenizer)
 # with the regexp-based tokenization.
 
-# instantiate Porter stemmer
-stemmer = nltk.stem.PorterStemmer()
-
 # regexp used in CountVectorizer
 regexp = re.compile('(?u)\\b\\w\\w+\\b')
 
@@ -63,17 +60,17 @@ en_nlp.tokenizer = lambda string: old_tokenizer.tokens_from_list(regexp.findall(
 
 # create a custom tokenizer using the spacy document processing pipeline
 # (now using our own tokenizer)
-def porter_tokenizer(document):
+def lemmatizer_tokenizer(document):
     doc_spacy = en_nlp(document, entity=False, parse=False)
-    return [stemmer.stem(token.norm_.lower()) for token in doc_spacy]
+    return [token.lemma_ for token in doc_spacy]
             
 #dtm
-vectorizer = CountVectorizer(tokenizer = porter_tokenizer, min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
+vectorizer = CountVectorizer(tokenizer = lemmatizer_tokenizer, min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Summary'])
 train_summary_dtm = vectorizer.transform(train['Summary'])
 test_summary_dtm = vectorizer.transform(test['Summary'])
 
-vectorizer = CountVectorizer(tokenizer = porter_tokenizer, min_df = 0.001, max_df = 1.0, ngram_range = (1, 3))
+vectorizer = CountVectorizer(tokenizer = lemmatizer_tokenizer, min_df = 0.001, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Text'])
 train_text_dtm = vectorizer.transform(train['Text'])
 test_text_dtm = vectorizer.transform(test['Text'])
@@ -88,7 +85,7 @@ train_text_arr = train_text.values
 test_text_arr = test_text.values
 
 #Instantiate Tfidf
-vectorizer = TfidfVectorizer(tokenizer = porter_tokenizer, min_df = 5, ngram_range = (1, 1), stop_words = 'english')
+vectorizer = TfidfVectorizer(tokenizer = lemmatizer_tokenizer, min_df = 5, ngram_range = (1, 1), stop_words = 'english')
 
 #Instantiate NMF
 nmf = NMF(n_components = 6, random_state = 44)
@@ -194,7 +191,7 @@ results = results.dropna(axis = 'rows', how = 'all')
 #Correct columns types
 results[['max_depth', 'n_rounds']] = results[['max_depth', 'n_rounds']].astype(int)
 
-#Order from best to worst score - xgb7 best score - 20/02/2017 - rmse - 0.875
+#Order from best to worst score - xgb7 best score - 20/02/2017 - rmse - 0.879
 
 results = results.sort_values('score', ascending = True)
 

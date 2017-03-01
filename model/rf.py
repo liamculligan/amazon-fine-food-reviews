@@ -9,6 +9,8 @@ from sklearn.decomposition import TruncatedSVD
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
+from sklearn.decomposition import NMF
+from sklearn.pipeline import make_pipeline
 
 #Read in csv
 reviews = pd.read_csv('Reviews.csv', index_col = 'Id', usecols = ['Id', 'Summary', 'Text', 'Score'])
@@ -43,36 +45,11 @@ test_text_dtm = vectorizer.transform(test['Summary'])
 train = train_text_dtm
 test = test_text_dtm
 
-"""
-#Singular Value Decomposition
-#max components == min(nrow -1, ncol - 1)
-svd = TruncatedSVD(n_components = 850, random_state = 44)
-svd.fit(train)
-
-#The amount of variance that each PC explains
-var = svd.explained_variance_ratio_
-print(var)
-
-#Cumulative Variance explains
-var1 = np.cumsum(np.round(svd.explained_variance_ratio_, decimals=4)*100)
-plt.plot(var1)
-
-#From the plot we will select 850 principal components, which explain ... of the variance:
-print(sum(var[0:850]))
-
-"""
-
-#From the plot, select 
-svd = TruncatedSVD(n_components = 850, random_state = 44)
-svd.fit(train)
-train = svd.transform(train)
-test = svd.transform(test)
-
 #Create a parameter grid: map the parameter names to the values that should be searched
-param_grid = dict(max_depth = [5, 10])
+param_grid = dict(max_depth = [10, 20])
 
 #Instantiate the grid
-rf = RandomForestRegressor(n_estimators = 10, random_state = 44, verbose = 3, n_jobs = -1)
+rf = RandomForestRegressor(n_estimators = 100, random_state = 44, verbose = 3, n_jobs = -1)
 print(rf)
 grid = GridSearchCV(rf, param_grid, cv = 5, scoring = 'neg_mean_squared_error')
 
@@ -82,7 +59,7 @@ grid.fit(train, train_score)
 #Check the scores
 scores = grid.cv_results_
 
-#Print the best score - 19/02/2017 - 1.173 (rmse - 1.083)
+#Print the best score - 19/02/2017 - 1.369 (rmse - 1.170)
 print("The best score is %s" % grid.best_score_)
 print("The best model parameters are: %s" % grid.best_params_)
 

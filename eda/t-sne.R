@@ -34,4 +34,4 @@ ggplot(tsne_embedding, aes(x = x, y = y, colour = topic)) +
         plot.title = element_text(hjust = 0.5)) +
   scale_colour_brewer(palette = "Set1")
 
-ggsave("tsne-topics.jpg", plot = last_plot(), dpi = 1000, width = 10)
+ggsave("eda/tsne-topics.jpg", plot = last_plot(), dpi = 1000, width = 10)

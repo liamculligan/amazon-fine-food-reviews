@@ -11,7 +11,6 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import MaxAbsScaler
 from sklearn.preprocessing import OneHotEncoder
 from scipy.sparse import csr_matrix, hstack
-import matplotlib.pyplot as plt
 from sklearn.linear_model import SGDRegressor
 from sklearn.metrics import mean_squared_error
 from sklearn.decomposition import NMF

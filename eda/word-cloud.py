@@ -48,7 +48,7 @@ plt.savefig('eda/summary-word-cloud-py.png', dpi = 500)
 #Overlay the word cloud on the Amazon Fresh logo with the same colouring
 
 # read the mask image
-mask = np.array(Image.open('amazon-fresh-logo.jpg'))
+mask = np.array(Image.open('eda/amazon-fresh-logo.jpg'))
 
 # create coloring from image
 image_colors = ImageColorGenerator(mask)
@@ -96,7 +96,7 @@ plt.savefig('eda/text-word-cloud.png', dpi = 500)
 #Overlay the word cloud on the Amazon Fresh logo with the same colouring
 
 # read the mask image
-mask = np.array(Image.open('amazon-fresh-logo.jpg'))
+mask = np.array(Image.open('eda/amazon-fresh-logo.jpg'))
 
 # create coloring from image
 image_colors = ImageColorGenerator(mask)

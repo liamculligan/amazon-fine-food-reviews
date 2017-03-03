@@ -3,6 +3,7 @@
 #Load required packages
 import pandas as pd
 import numpy as np
+import re
 from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
 from nltk import pos_tag
@@ -37,9 +38,53 @@ score = reviews['Score']
 reviews = reviews.drop('Score', axis = 'columns')
 
 #Count the number of words
-reviews['summary_count'] = reviews['Summary'].str.split().apply(len)
-reviews['text_count'] = reviews['Text'].str.split().apply(len)
-reviews = reviews.assign(all_words_count = reviews['summary_count'] + reviews['text_count'])
+reviews['summary_word_count'] = reviews['Summary'].str.split().apply(len)
+reviews['text_word_count'] = reviews['Text'].str.split().apply(len)
+reviews = reviews.assign(all_word_count = reviews['summary_word_count'] + reviews['text_word_count'])
+
+#Count the number of letters
+reviews['summary_letter_count'] = reviews['Summary'].apply(lambda x: len(re.findall("[aA-zZ]", x)))
+reviews['text_letter_count'] = reviews['Text'].apply(lambda x: len(re.findall("[aA-zZ]", x)))
+reviews = reviews.assign(all_capital_char_count = reviews['summary_letter_count'] + 
+                         reviews['text_letter_count'])
+
+#Count the number of capital letters
+reviews['summary_capital_letter_count'] = reviews['Summary'].apply(lambda x: len(re.findall("[A-Z]", x)))
+reviews['text_capital_letter_count'] = reviews['Text'].apply(lambda x: len(re.findall("[A-Z]", x)))
+reviews = reviews.assign(all_capital_char_count = reviews['summary_capital_letter_count'] + 
+                         reviews['text_capital_letter_count'])
+
+#Count the ratio of capital letters to all letters
+reviews = reviews.assign(summary_capital_char_ratio = reviews['summary_capital_letter_count'] / 
+                         reviews['summary_letter_count'])
+reviews = reviews.assign(text_capital_char_ratio = reviews['text_capital_letter_count'] / 
+                         reviews['text_letter_count'])
+
+#Set nan to 0
+reviews['summary_capital_char_ratio'] = reviews['summary_capital_char_ratio'].fillna(value = 0)
+reviews['text_capital_char_ratio'] = reviews['text_capital_char_ratio'].fillna(value = 0)
+
+#Count the number of white spaces
+reviews['summary_whitespace_count'] = reviews['Summary'].apply(lambda x: x.count(" "))
+reviews['text_whitespace_count'] = reviews['Text'].apply(lambda x: x.count(" "))
+reviews = reviews.assign(all_whitespace_count = reviews['summary_whitespace_count'] +
+                         reviews['text_whitespace_count'])
+
+#Count the average of characters per word
+reviews['summary_chars_per_word'] = reviews['Summary'].apply(lambda x: len(x) / (x.count(" ") + 1))
+reviews['text_chars_per_word'] = reviews['Text'].apply(lambda x: len(x) / (x.count(" ") + 1))
+
+#Count the average number of words per sentence (rough approximation)
+reviews['summary_words_per_sentence'] = reviews['Summary'].apply(lambda x: x.count(" ") / (x.count(".") + 1))
+reviews['text_words_per_sentence'] = reviews['Text'].apply(lambda x: x.count(" ") / (x.count(".") + 1))
+
+reviews['summary_words_per_sentence'] = reviews['summary_words_per_sentence'].fillna(value = 0)
+reviews['text_words_per_sentence'] = reviews['text_words_per_sentence'].fillna(value = 0)
+
+#Count the number of digits
+reviews['summary_digit_count'] = reviews['Summary'].apply(lambda x: len(re.findall("\d", x)))
+reviews['text_digit_count'] = reviews['Text'].apply(lambda x: len(re.findall("\d", x)))
+reviews = reviews.assign(all_digit_count = reviews['summary_digit_count'] + reviews['text_digit_count'])
 
 #Create train and test stratified w.r.t score
 train, test, train_score, test_score = train_test_split(reviews, score, train_size = 0.5, stratify = score, \
@@ -241,7 +286,7 @@ grid.fit(train, train_score)
 #Check the scores
 scores = grid.cv_results_
 
-#Print the best score - 22/02/2017 - 0.809 (rmse - 0.890)
+#Print the best score - 03/03/2017 - 0.815 (rmse - 0.902)
 print("The best score is %s" % grid.best_score_)
 print("The best model parameters are: %s" % grid.best_params_)
 

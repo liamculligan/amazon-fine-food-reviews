@@ -7,6 +7,7 @@ import re
 from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
 from nltk import pos_tag
+import spacy
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import MaxAbsScaler
@@ -176,8 +177,21 @@ train_score = train_score.sort_index()
 test = test.sort_index()
 test_score = test_score.sort_index()
 
+#Use spacy's lemmatizer
+
+# load spacy language model and save old tokenizer
+en_nlp = spacy.load('en')
+old_tokenizer = en_nlp.tokenizer
+
+# create a custom tokenizer using the spacy document processing pipeline
+# (now using our own tokenizer)
+def custom_tokenizer(document):
+    doc_spacy = en_nlp(document, entity=False, parse=False)
+    return [token.lemma_ for token in doc_spacy]
+
+# define a count vectorizer with the custom tokenizer
 #Summary dtm
-vectorizer = CountVectorizer(min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
+vectorizer = CountVectorizer(tokenizer = custom_tokenizer, min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Summary'])
 train_summary_dtm = vectorizer.transform(train['Summary'])
 test_summary_dtm = vectorizer.transform(test['Summary'])
@@ -186,7 +200,7 @@ test_summary_dtm = vectorizer.transform(test['Summary'])
 names_summary_dtm = vectorizer.get_feature_names()
 
 #Text dtm
-vectorizer = CountVectorizer(min_df = 0.001, max_df = 1.0, ngram_range = (1, 3))
+vectorizer = CountVectorizer(tokenizer = custom_tokenizer, min_df = 0.001, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Text'])
 train_text_dtm = vectorizer.transform(train['Text'])
 test_text_dtm = vectorizer.transform(test['Text'])
@@ -286,7 +300,7 @@ grid.fit(train, train_score)
 #Check the scores
 scores = grid.cv_results_
 
-#Print the best score - 03/03/2017 - 0.815 (rmse - 0.902)
+#Print the best score - 03/03/2017 - 0.789 (rmse - 0.885)
 print("The best score is %s" % grid.best_score_)
 print("The best model parameters are: %s" % grid.best_params_)
 
@@ -302,4 +316,4 @@ test_preds_df = pd.DataFrame({
         "score": test_preds
 })
     
-test_preds_df.to_csv('model/lm3.csv', index=False)
+test_preds_df.to_csv('model/lm.csv', index=False)

@@ -2,13 +2,13 @@
 
 #Load required packages
 import pandas as pd
-import numpy as np
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_extraction.text import HashingVectorizer
 from sklearn.preprocessing import MaxAbsScaler
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.linear_model import SGDRegressor
+from sklearn.linear_model import PassiveAggressiveRegressor
+from sklearn.metrics import mean_squared_error
 
 #Create custom classes
 class ItemSelector(BaseEstimator, TransformerMixin):
@@ -60,8 +60,9 @@ reviews['summary_count'] = reviews['Summary'].str.split().apply(len)
 reviews['text_count'] = reviews['Text'].str.split().apply(len)
 reviews = reviews.assign(all_words_count = reviews['summary_count'] + reviews['text_count'])
 
-train = reviews
-train_score = score
+#Create train and test stratified w.r.t score
+train, test, train_score, test_score = train_test_split(reviews, score, train_size = 0.8,
+                                                        stratify = score, random_state = 44)
 
 #Order train_score and test_score by index
 train = train.sort_index()
@@ -89,15 +90,11 @@ pipeline = Pipeline([
     ('scaler',  MaxAbsScaler()),
 
     #Only instatiating a model
-    ('model', SGDRegressor()),
+    ('model', PassiveAggressiveRegressor()),
 ])
 
 #Parameters to be searched
-param_grid = [{'model': [SGDRegressor(loss = 'squared_loss', n_iter = np.ceil(10**6 /train.shape[0]), \
-                                       random_state = 44, verbose = 3)],
-               'model__l1_ratio': [0],
-               'model__alpha': [10**-10]}
-              ]
+param_grid = [{'model': [PassiveAggressiveRegressor()]}]
 
 #Instantiate the grid
 grid = GridSearchCV(pipeline, param_grid, cv = 5, scoring = 'neg_mean_squared_error')
@@ -111,3 +108,9 @@ scores = grid.cv_results_
 #Print the best score
 print("The best score is %s" % grid.best_score_)
 print("The best model parameters are: %s" % grid.best_params_)
+
+#Make test set predictions
+test_preds = grid.predict(test)
+
+#Test score
+print(mean_squared_error(test_score, test_preds))

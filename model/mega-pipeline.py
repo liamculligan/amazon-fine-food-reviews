@@ -22,7 +22,6 @@ class ItemSelector(BaseEstimator, TransformerMixin):
     def transform(self, data_dict):
         return data_dict[self.key]
 
-###
 class NoFitMixin:
     def fit(self, X, y=None):
         return self
@@ -99,34 +98,35 @@ pipeline = Pipeline([
 ])
 
 #Parameters to be searched
-param_grid = [{'model' : [SGDRegressor(loss = 'squared_loss', n_iter = np.ceil(10**6 /train.shape[0]), \
-                                       random_state = 44, verbose = 3)],
-               'model__l1_ratio' : [0, 0.5, 1],
-              'model__alpha' : [0.0001, 0.1, 1, 10],
-              'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
-              'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
-              {'model' : [RandomForestRegressor(n_estimators = 2, random_state = 44, verbose = 3, n_jobs = -1)],
-               'model__max_depth' : [3],
-               'scaler' : [None],
-               'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
-              'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
-              {'model' : [LinearRegression(n_jobs = -1)],
-               'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
-              'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
-              {'model' : [Ridge(random_state = 44)],
-               'model__alpha' : [0.1, 1, 10],
-               'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
-              'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
-              {'model' : [Lasso(random_state = 44)],
-               'model__alpha' : [0.1, 1, 10],
-               'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
-              'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
-              {'model' : [ElasticNet(random_state = 44)],
-               'model__l1_ratio' : [0.1, 0.5, 0.7, 0.9],          
-               'model__alpha' : [0.1, 1, 10],
-               'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
-              'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]}
-              ]
+param_grid = [
+    {'model' : [SGDRegressor(loss = 'squared_loss', n_iter = np.ceil(10**6 /train.shape[0]), random_state = 44,
+                             verbose = 3)],
+        'model__l1_ratio' : [0, 0.5, 1],
+        'model__alpha' : [0.0001, 0.1, 1, 10],
+        'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
+        'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
+    {'model' : [RandomForestRegressor(n_estimators = 2, random_state = 44, verbose = 3, n_jobs = -1)],
+        'model__max_depth' : [3],
+        'scaler' : [None],
+        'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
+        'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
+    {'model' : [LinearRegression(n_jobs = -1)],
+        'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
+        'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
+    {'model' : [Ridge(random_state = 44)],
+        'model__alpha' : [0.1, 1, 10],
+        'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
+        'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
+    {'model' : [Lasso(random_state = 44)],
+        'model__alpha' : [0.1, 1, 10],
+        'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
+        'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]},
+    {'model' : [ElasticNet(random_state = 44)],
+        'model__l1_ratio' : [0.1, 0.5, 0.7, 0.9],          
+        'model__alpha' : [0.1, 1, 10],
+        'union__summary__count_vectorizer__ngram_range': [(1, 1), (1, 2)],
+        'union__text__count_vectorizer__ngram_range': [(1, 1), (1, 2)]}
+]
 
 grid = GridSearchCV(pipeline, param_grid, cv = 5, scoring = 'neg_mean_squared_error', n_jobs = -1)
                                                         

@@ -3,9 +3,11 @@
 #Load required packages
 import pandas as pd
 import numpy as np
+import re
 from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
 from nltk import pos_tag
+import spacy
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import MaxAbsScaler
@@ -37,9 +39,53 @@ score = reviews['Score']
 reviews = reviews.drop('Score', axis = 'columns')
 
 #Count the number of words
-reviews['summary_count'] = reviews['Summary'].str.split().apply(len)
-reviews['text_count'] = reviews['Text'].str.split().apply(len)
-reviews = reviews.assign(all_words_count = reviews['summary_count'] + reviews['text_count'])
+reviews['summary_word_count'] = reviews['Summary'].str.split().apply(len)
+reviews['text_word_count'] = reviews['Text'].str.split().apply(len)
+reviews = reviews.assign(all_word_count = reviews['summary_word_count'] + reviews['text_word_count'])
+
+#Count the number of letters
+reviews['summary_letter_count'] = reviews['Summary'].apply(lambda x: len(re.findall("[aA-zZ]", x)))
+reviews['text_letter_count'] = reviews['Text'].apply(lambda x: len(re.findall("[aA-zZ]", x)))
+reviews = reviews.assign(all_capital_char_count = reviews['summary_letter_count'] + 
+                         reviews['text_letter_count'])
+
+#Count the number of capital letters
+reviews['summary_capital_letter_count'] = reviews['Summary'].apply(lambda x: len(re.findall("[A-Z]", x)))
+reviews['text_capital_letter_count'] = reviews['Text'].apply(lambda x: len(re.findall("[A-Z]", x)))
+reviews = reviews.assign(all_capital_char_count = reviews['summary_capital_letter_count'] + 
+                         reviews['text_capital_letter_count'])
+
+#Count the ratio of capital letters to all letters
+reviews = reviews.assign(summary_capital_char_ratio = reviews['summary_capital_letter_count'] / 
+                         reviews['summary_letter_count'])
+reviews = reviews.assign(text_capital_char_ratio = reviews['text_capital_letter_count'] / 
+                         reviews['text_letter_count'])
+
+#Set nan to 0
+reviews['summary_capital_char_ratio'] = reviews['summary_capital_char_ratio'].fillna(value = 0)
+reviews['text_capital_char_ratio'] = reviews['text_capital_char_ratio'].fillna(value = 0)
+
+#Count the number of white spaces
+reviews['summary_whitespace_count'] = reviews['Summary'].apply(lambda x: x.count(" "))
+reviews['text_whitespace_count'] = reviews['Text'].apply(lambda x: x.count(" "))
+reviews = reviews.assign(all_whitespace_count = reviews['summary_whitespace_count'] +
+                         reviews['text_whitespace_count'])
+
+#Count the average of characters per word
+reviews['summary_chars_per_word'] = reviews['Summary'].apply(lambda x: len(x) / (x.count(" ") + 1))
+reviews['text_chars_per_word'] = reviews['Text'].apply(lambda x: len(x) / (x.count(" ") + 1))
+
+#Count the average number of words per sentence (rough approximation)
+reviews['summary_words_per_sentence'] = reviews['Summary'].apply(lambda x: x.count(" ") / (x.count(".") + 1))
+reviews['text_words_per_sentence'] = reviews['Text'].apply(lambda x: x.count(" ") / (x.count(".") + 1))
+
+reviews['summary_words_per_sentence'] = reviews['summary_words_per_sentence'].fillna(value = 0)
+reviews['text_words_per_sentence'] = reviews['text_words_per_sentence'].fillna(value = 0)
+
+#Count the number of digits
+reviews['summary_digit_count'] = reviews['Summary'].apply(lambda x: len(re.findall("\d", x)))
+reviews['text_digit_count'] = reviews['Text'].apply(lambda x: len(re.findall("\d", x)))
+reviews = reviews.assign(all_digit_count = reviews['summary_digit_count'] + reviews['text_digit_count'])
 
 #Create train and test stratified w.r.t score
 train, test, train_score, test_score = train_test_split(reviews, score, train_size = 0.5, stratify = score, \
@@ -131,8 +177,21 @@ train_score = train_score.sort_index()
 test = test.sort_index()
 test_score = test_score.sort_index()
 
+#Use spacy's lemmatizer
+
+# load spacy language model and save old tokenizer
+en_nlp = spacy.load('en')
+old_tokenizer = en_nlp.tokenizer
+
+# create a custom tokenizer using the spacy document processing pipeline
+# (now using our own tokenizer)
+def custom_tokenizer(document):
+    doc_spacy = en_nlp(document, entity=False, parse=False)
+    return [token.lemma_ for token in doc_spacy]
+
+# define a count vectorizer with the custom tokenizer
 #Summary dtm
-vectorizer = CountVectorizer(min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
+vectorizer = CountVectorizer(tokenizer = custom_tokenizer, min_df = 0.0005, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Summary'])
 train_summary_dtm = vectorizer.transform(train['Summary'])
 test_summary_dtm = vectorizer.transform(test['Summary'])
@@ -141,7 +200,7 @@ test_summary_dtm = vectorizer.transform(test['Summary'])
 names_summary_dtm = vectorizer.get_feature_names()
 
 #Text dtm
-vectorizer = CountVectorizer(min_df = 0.001, max_df = 1.0, ngram_range = (1, 3))
+vectorizer = CountVectorizer(tokenizer = custom_tokenizer, min_df = 0.001, max_df = 1.0, ngram_range = (1, 3))
 vectorizer.fit(train['Text'])
 train_text_dtm = vectorizer.transform(train['Text'])
 test_text_dtm = vectorizer.transform(test['Text'])
@@ -241,7 +300,7 @@ grid.fit(train, train_score)
 #Check the scores
 scores = grid.cv_results_
 
-#Print the best score - 22/02/2017 - 0.809 (rmse - 0.890)
+#Print the best score - 03/03/2017 - 0.789 (rmse - 0.885)
 print("The best score is %s" % grid.best_score_)
 print("The best model parameters are: %s" % grid.best_params_)
 
@@ -257,4 +316,4 @@ test_preds_df = pd.DataFrame({
         "score": test_preds
 })
     
-test_preds_df.to_csv('model/lm3.csv', index=False)
+test_preds_df.to_csv('model/lm.csv', index=False)

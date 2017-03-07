@@ -137,37 +137,81 @@ def pos_count(series, to_lower = False):
     
     return(pos_count)
 
-def pos_concat(train, test, col_name):
+#Entity Recognition
+def entity_count(series, to_lower = False):
     
-    """Add pos_counts to train and test ensuring that same columns exist in each."""
+    """Input a pandas series to convert it into a count for each part of speech."""
     
-    train_pos = pos_count(train[col_name])
-    test_pos = pos_count(test[col_name])
+    rows = list(series)
     
-    train_pos_cols = list(train_pos.columns)
-    test_pos_cols = list(test_pos.columns)
+    #Create an empty list
+    row_entities = []
+    
+    #For each row in the pandas series
+    for row in rows:
+        
+        #Convert to lowercase if the to_lower argument is set to True
+        if to_lower == True:
+            row = row.lower()
+        
+        #Apply the english language model to the current row
+        row_parsed = nlp(row)
+        
+        #For each entity, add its type to a list
+        entities = [ent.label_ for ent in row_parsed.ents]
+        
+        #Add this row's list to the overall list
+        row_entities.append(entities)
+        
+    #Convert list to a pandas DataFrame - each part of speech in a separate column
+    row_entities = pd.DataFrame(row_entities)
+    row_entities.index = series.index
+    
+    #Stack to create multiindexed Series by row and column (long df)
+    #Dummy this series but still multiindexed by row and column
+    #Sum this by row to get the count of each pos for each row
+    entity_count = pd.get_dummies(row_entities.stack()).sum(level = 0)
+    
+    #Add series name to each new part of speech column name
+    entity_count = entity_count.add_prefix(series.name + '_')
+    
+    return(entity_count)
+
+def counts_concat(train, test, col_name, count_function):
+    
+    """
+    Add results of count function (pos or entities) to train and test ensuring that same 
+    columns exist in each.
+    """
+    
+    train_counts = count_function(train[col_name])
+    test_counts = count_function(test[col_name])
+    
+    train_count_cols = list(train_counts.columns)
+    test_count_cols = list(test_counts.columns)
     
     #Remove any columns in test not in train
-    test_cols_drop = set(test_pos_cols) - set(train_pos_cols)
-    test_pos = test_pos.drop(test_cols_drop, axis = 'columns')
+    test_cols_drop = set(test_count_cols) - set(train_count_cols)
+    test_counts = test_counts.drop(test_cols_drop, axis = 'columns')
         
     #Add any columns in train not in test
-    test_cols_add = set(train_pos_cols) - set(test_pos_cols)
+    test_cols_add = set(train_count_cols) - set(test_count_cols)
     for col in test_cols_add:
-        test_pos[col] = 0
+        test_counts[col] = 0
     
     #Add counts of pos to train and test
-    train = pd.concat([train, train_pos], axis = 'columns')
-    test = pd.concat([test, test_pos], axis = 'columns')
+    train = pd.concat([train, train_counts], axis = 'columns')
+    test = pd.concat([test, test_counts], axis = 'columns')
     
     #Some rows have no pos - these become nan - replace with 0
-    train[train_pos_cols] = train[train_pos_cols].fillna(value = 0)
-    test[train_pos_cols] = test[train_pos_cols].fillna(value = 0)
+    train[train_count_cols] = train[train_count_cols].fillna(value = 0)
+    test[test_count_cols] = test[test_count_cols].fillna(value = 0)
      
     return(train, test)
 
-#Call function
-train, test = pos_concat(train, test, 'Summary')
+#Call functions
+train, test = counts_concat(train, test, 'Summary', pos_count)
+train, test = counts_concat(train, test, 'Summary', entity_count)
 
 #Reorder DataFrames and Series by index
 train = train.sort_index()
@@ -298,7 +342,7 @@ grid.fit(train, train_score)
 #Check the scores
 scores = grid.cv_results_
 
-#Print the best score - 03/03/2017 - 0.790 (rmse - 0.889)
+#Print the best score - 07/03/2017 - 0.791 (rmse - 0.889)
 print("The best score is %s" % grid.best_score_)
 print("The best model parameters are: %s" % grid.best_params_)
 

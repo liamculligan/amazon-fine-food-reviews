@@ -4,9 +4,6 @@
 import pandas as pd
 import numpy as np
 import re
-from nltk.corpus import stopwords
-from nltk.tokenize import RegexpTokenizer
-from nltk import pos_tag
 import spacy
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
@@ -97,35 +94,36 @@ train_score = train_score.sort_index()
 test = test.sort_index()
 test_score = test_score.sort_index()
 
+#Load spacy language model
+nlp = spacy.load('en')
+
 #Parts of Speech Tagging
-def pos_count(series):
+def pos_count(series, to_lower = False):
     
     """Input a pandas series to convert it into a count for each part of speech."""
     
     rows = list(series)
     
-    stop_words = set(stopwords.words("english"))
-    
-    #Tokenizer does not include punctuation
-    tokenizer = RegexpTokenizer(r'\w+')
-    
+    #Create an empty list
     row_pos = []
     
+    #For each row in the pandas series
     for row in rows:
-        row_tokenized = tokenizer.tokenize(row)
-        row_words = []
-        for word in row_tokenized:
-            word = word.lower()
-            if word not in stop_words:
-                #Specifically converting to lower - all words are capitalised in headline
-                row_words.append(word.lower())
-        word_pos = pos_tag(row_words)
-        pos = []
-        for tag in word_pos:
-            pos.append(tag[1])
+        
+        #Convert to lowercase if the to_lower argument is set to True
+        if to_lower == True:
+            row = row.lower()
+        
+        #Apply the english language model to the current row
+        row_parsed = nlp(row)
+        
+        #For each word that isn't a stop word in the parsed document, add its part of speech to a list
+        pos = [word.pos_ for word in row_parsed if not word in spacy.en.language_data.STOP_WORDS]
+        
+        #Add this row's list to the overall list
         row_pos.append(pos)
         
-    #Convert list to a pandas DataFrame - each word in a separate column
+    #Convert list to a pandas DataFrame - each part of speech in a separate column
     row_pos = pd.DataFrame(row_pos)
     row_pos.index = series.index
     
@@ -134,7 +132,7 @@ def pos_count(series):
     #Sum this by row to get the count of each pos for each row
     pos_count = pd.get_dummies(row_pos.stack()).sum(level = 0)
     
-    #Add series to to each column name
+    #Add series name to each new part of speech column name
     pos_count = pos_count.add_prefix(series.name + '_')
     
     return(pos_count)
@@ -300,7 +298,7 @@ grid.fit(train, train_score)
 #Check the scores
 scores = grid.cv_results_
 
-#Print the best score - 03/03/2017 - 0.789 (rmse - 0.885)
+#Print the best score - 03/03/2017 - 0.790 (rmse - 0.889)
 print("The best score is %s" % grid.best_score_)
 print("The best model parameters are: %s" % grid.best_params_)
 
